@@ -9,5 +9,5 @@ class AdminSetPrice(StatesGroup):
 class AdminSetSlot(StatesGroup):
     waiting_for_slot_limit = State()
 
-class AdminSetQuantity(StatesGroup):
-    waiting_for_quantity = State()
+class BroadcastState(StatesGroup):
+    waiting_for_message = State()

@@ -8,4 +8,7 @@ ADMIN_IDS = list(map(int, os.getenv("ADMIN_IDS", "").split(","))) if os.getenv("
 REQUIRED_CHANNEL = os.getenv("REQUIRED_CHANNEL", "").strip()
 if REQUIRED_CHANNEL and not REQUIRED_CHANNEL.startswith("@"):
     REQUIRED_CHANNEL = "@" + REQUIRED_CHANNEL
-ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID")) if os.getenv("ADMIN_CHAT_ID") and os.getenv("ADMIN_CHAT_ID").strip().isdigit() else None
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL is not set in .env")

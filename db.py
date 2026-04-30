@@ -1,6 +1,6 @@
 import asyncpg
 from datetime import datetime, timedelta
-from typing import List, Dict, Optional, Tuple, Any
+from typing import List, Dict, Optional, Tuple
 from config import DATABASE_URL
 
 _pool: Optional[asyncpg.Pool] = None
@@ -16,11 +16,9 @@ async def get_pool() -> asyncpg.Pool:
         await init_db_pool()
     return _pool
 
-# ---------- Инициализация таблиц ----------
 async def init_db():
     pool = await get_pool()
     async with pool.acquire() as conn:
-        # users
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 user_id BIGINT PRIMARY KEY,
@@ -36,7 +34,6 @@ async def init_db():
                 terms_accepted BOOLEAN DEFAULT FALSE
             )
         """)
-        # qr_submissions
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS qr_submissions (
                 id SERIAL PRIMARY KEY,
@@ -53,7 +50,6 @@ async def init_db():
                 hold_until TIMESTAMP
             )
         """)
-        # operators
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS operators (
                 name TEXT PRIMARY KEY,
@@ -62,7 +58,6 @@ async def init_db():
                 slot_limit INTEGER DEFAULT -1
             )
         """)
-        # bookings
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS bookings (
                 id SERIAL PRIMARY KEY,
@@ -72,14 +67,12 @@ async def init_db():
                 used BOOLEAN DEFAULT FALSE
             )
         """)
-        # settings
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,
                 value TEXT
             )
         """)
-        # daily_stats
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS daily_stats (
                 date DATE PRIMARY KEY,
@@ -87,7 +80,6 @@ async def init_db():
                 total_earned REAL DEFAULT 0
             )
         """)
-        # indexes
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_submissions_user ON qr_submissions(user_id)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_submissions_status ON qr_submissions(status)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_bookings_user ON bookings(user_id)")
@@ -101,7 +93,10 @@ async def register_user(user_id: int, username: str, full_name: str, referrer_id
             user_id, username, full_name, datetime.now(), referrer_id
         )
         if referrer_id and referrer_id != user_id:
-            await update_user_earnings(referrer_id, 1.0, is_referral_bonus=True)
+            await conn.execute(
+                "UPDATE users SET referral_earnings = referral_earnings + 1, crypto_balance = crypto_balance + 1 WHERE user_id = $1",
+                referrer_id
+            )
 
 async def accept_terms(user_id: int):
     pool = await get_pool()
@@ -138,11 +133,6 @@ async def add_crypto_balance(user_id: int, amount: float):
     pool = await get_pool()
     async with pool.acquire() as conn:
         await conn.execute("UPDATE users SET crypto_balance = crypto_balance + $1 WHERE user_id = $2", amount, user_id)
-
-async def reset_daily_earnings():
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        await conn.execute("UPDATE users SET earned_today = 0")
 
 async def increment_total_qr(user_id: int):
     pool = await get_pool()
@@ -307,7 +297,7 @@ async def get_user_qr_last_30_days(user_id: int) -> Tuple[int, List[str]]:
             "SELECT submitted_at FROM qr_submissions WHERE user_id = $1 AND status = 'accepted' AND submitted_at >= $2",
             user_id, since
         )
-        dates = [r[0].strftime("%Y-%m-%d") for r in rows]
+        dates = [row['submitted_at'].strftime("%Y-%m-%d") for row in rows]
         return len(rows), list(set(dates))
 
 async def get_today_stats() -> Dict:
@@ -327,4 +317,4 @@ async def get_top_users(limit: int = 10) -> List[Dict]:
             "SELECT user_id, total_earned FROM users ORDER BY total_earned DESC LIMIT $1",
             limit
         )
-        return [{"user_id": r[0], "total_earned": r[1]} for r in rows]
+        return [{"user_id": r['user_id'], "total_earned": r['total_earned']} for r in rows]

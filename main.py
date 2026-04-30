@@ -6,7 +6,8 @@ from aiogram.client.default import DefaultBotProperties
 from datetime import datetime
 
 from config import BOT_TOKEN
-from db import init_db_pool, get_hold_submissions, get_submission, calculate_rank, accept_submission_from_hold
+from db import init_db_pool, get_hold_submissions, accept_submission_from_hold
+from utils import calculate_rank
 from handlers import user_handlers, admin_handlers, callback_handlers
 from middleware import SubscriptionMiddleware
 from handlers.callback_handlers import start_hold_timer
@@ -17,21 +18,29 @@ async def restore_holds(bot: Bot):
         hold_until = sub['hold_until']
         delay = (hold_until - datetime.now()).total_seconds()
         if delay > 0:
-            asyncio.create_task(start_hold_timer(bot, sub['id'], sub['price'], sub['user_id'], delay))
+            asyncio.create_task(
+                start_hold_timer(
+                    bot,
+                    sub['id'],
+                    sub['price'],
+                    sub['user_id'],
+                    delay
+                )
+            )
 
 async def main():
     logging.basicConfig(level=logging.INFO)
     bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
 
-    # Инициализируем пул соединений с БД
+    # Инициализация пула соединений с БД
     await init_db_pool()
 
-    # Middleware
+    # Мидлвари
     dp.message.middleware(SubscriptionMiddleware())
     dp.callback_query.middleware(SubscriptionMiddleware())
 
-    # Роутеры
+    # Подключаем роутеры
     dp.include_router(user_handlers.router)
     dp.include_router(admin_handlers.router)
     dp.include_router(callback_handlers.router)
